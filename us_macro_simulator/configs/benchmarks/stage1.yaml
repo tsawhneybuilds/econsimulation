@@ -3,6 +3,7 @@ benchmarks:
   - ar4
   - local_mean
   - factor_model
+  - semi_structural
 
 variables:
   - gdp_growth

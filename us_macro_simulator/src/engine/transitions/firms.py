@@ -104,7 +104,8 @@ def set_firms_profits(state: SimulationState) -> None:
     production_tax = firms.tau_K_i * (firms.K_i * firms.P_i)
 
     firms.Pi_i = revenue - labour_cost - interest_cost - depreciation - product_tax - production_tax
-    firms.pi_bar_i = np.where(revenue > 0, firms.Pi_i / revenue, 0.0)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        firms.pi_bar_i = np.where(revenue > 0, firms.Pi_i / revenue, 0.0)
 
 
 def set_firms_deposits(state: SimulationState) -> None:

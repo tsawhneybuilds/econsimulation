@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Stage 1 Validation Report</title>
+    <style>
+      :root {
+        --bg: #f4efe8;
+        --panel: #fffaf4;
+        --ink: #1f2a30;
+        --muted: #6c6c63;
+        --accent: #aa3a2a;
+        --accent-2: #446b7a;
+        --ok: #1b4d3e;
+        --warn: #8a5a0a;
+      }
+      body {
+        margin: 0;
+        font-family: "Georgia", "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(170, 58, 42, 0.08), transparent 32%),
+          linear-gradient(160deg, #f7f2eb, #efe5d7 52%, #f4efe8);
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+      .hero {
+        background: linear-gradient(135deg, rgba(255, 250, 244, 0.94), rgba(245, 235, 220, 0.94));
+        border: 1px solid rgba(31, 42, 48, 0.08);
+        border-radius: 18px;
+        padding: 28px;
+        box-shadow: 0 14px 36px rgba(31, 42, 48, 0.08);
+      }
+      h1, h2, h3 { margin-top: 0; }
+      h1 { font-size: 2.4rem; margin-bottom: 0.4rem; }
+      h2 { font-size: 1.25rem; margin-bottom: 0.75rem; }
+      .status {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-weight: 700;
+        background: {{ '#d8efe5' if report.overall_passed else '#f7ddd6' }};
+        color: {{ '#1b4d3e' if report.overall_passed else '#8a2214' }};
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+        margin-top: 24px;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid rgba(31, 42, 48, 0.08);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 8px 22px rgba(31, 42, 48, 0.05);
+      }
+      .check-list {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .chart-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 18px;
+      }
+      img {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid rgba(31, 42, 48, 0.08);
+        background: white;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.94rem;
+      }
+      th, td {
+        padding: 9px 10px;
+        border-bottom: 1px solid rgba(31, 42, 48, 0.08);
+        text-align: left;
+      }
+      th {
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 0.75rem;
+      }
+      .muted { color: var(--muted); }
+      .spacer { height: 18px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <span class="status">{{ "PASS" if report.overall_passed else "FAIL" }}</span>
+        <h1>Stage 1 Validation Report</h1>
+        <p class="muted">Run {{ report.run_id }} generated at {{ report.generated_at }}</p>
+        <p>{{ report.summary.n_checks }} checks, {{ report.summary.n_hard_failures }} hard failures, {{ report.summary.n_soft_failures }} soft failures.</p>
+      </section>
+
+      <div class="grid">
+        <section class="panel">
+          <h2>Hard Failures</h2>
+          <ul class="check-list">
+            {% for check in hard_failures %}
+            <li><strong>{{ check.name }}</strong>: {{ check.summary }}</li>
+            {% else %}
+            <li>No hard failures.</li>
+            {% endfor %}
+          </ul>
+        </section>
+        <section class="panel">
+          <h2>Warnings</h2>
+          <ul class="check-list">
+            {% for check in warnings %}
+            <li><strong>{{ check.name }}</strong>: {{ check.summary }}</li>
+            {% else %}
+            <li>No warnings.</li>
+            {% endfor %}
+          </ul>
+        </section>
+        <section class="panel">
+          <h2>Scenario Summary</h2>
+          <p class="muted">{{ report.summary.scenario.name }}</p>
+          <ul class="check-list">
+            {% for key, value in report.summary.scenario.deltas.items() %}
+            <li><strong>{{ key }}</strong>: {{ "%.3f"|format(value) }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+      </div>
+
+      <div class="spacer"></div>
+
+      <section class="panel">
+        <h2>Charts</h2>
+        <div class="chart-grid">
+          {% for label, chart_path in charts.items() %}
+          <figure>
+            <img src="{{ chart_path }}" alt="{{ label }}">
+            <figcaption class="muted">{{ label.replace('_', ' ').title() }}</figcaption>
+          </figure>
+          {% endfor %}
+        </div>
+      </section>
+
+      <div class="spacer"></div>
+
+      <section class="panel">
+        <h2>Model Comparison</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Origin</th>
+              <th>Model</th>
+              <th>Variable</th>
+              <th>RMSE</th>
+              <th>MAE</th>
+              <th>Relative RMSE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in comparison_rows[:50] %}
+            <tr>
+              <td>{{ row.origin }}</td>
+              <td>{{ row.model }}</td>
+              <td>{{ row.variable }}</td>
+              <td>{{ row.rmse }}</td>
+              <td>{{ row.mae }}</td>
+              <td>{{ row.relative_rmse }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

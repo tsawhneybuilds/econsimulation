@@ -2,12 +2,14 @@ vintage_date: "2019-12-31"
 frequency: Q
 series:
   - GDPC1
+  - GDPC1_GROWTH
   - CPIAUCSL
   - CPILFESL
   - UNRATE
   - FEDFUNDS
   - PCECC96
   - PRFI
+  - FCI
 source: fixture
 fixture_tier: tier_a
 output_dir: data/processed

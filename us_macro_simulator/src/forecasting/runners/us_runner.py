@@ -101,6 +101,7 @@ class USForecastRunner:
             run_state.rng_state = np.random.default_rng(seed)
 
         mapper = NIPAMapper()
+        mapper.initialize_from_state(run_state)
         snapshots: List[ObservableSnapshot] = []
 
         for _ in range(T):

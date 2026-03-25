@@ -41,6 +41,33 @@ class ObservedDataset:
             raise KeyError(f"Series '{series_id}' not in dataset")
         return self.data[series_id]
 
+    def latest_period(self, series_id: str | None = None) -> pd.Period | None:
+        """Return the latest period with data."""
+        if self.data.empty:
+            return None
+
+        if series_id is None:
+            non_empty_rows = self.data.dropna(how="all")
+            if non_empty_rows.empty:
+                return None
+            return non_empty_rows.index[-1]
+
+        series = self.get_series(series_id).dropna()
+        if series.empty:
+            return None
+        return series.index[-1]
+
+    def latest_value(self, series_id: str, default: float | None = None) -> float | None:
+        """Return the most recent non-null value for *series_id*."""
+        series = self.get_series(series_id).dropna()
+        if series.empty:
+            return default
+        return float(series.iloc[-1])
+
+    def latest_snapshot(self, series_ids: list[str]) -> Dict[str, float | None]:
+        """Return latest non-null values for a list of series IDs."""
+        return {series_id: self.latest_value(series_id) for series_id in series_ids}
+
 
 class DatasetBuilder:
     """Builds ObservedDataset from config and optional vintage date."""
@@ -75,6 +102,28 @@ class DatasetBuilder:
         # Build metadata
         metadata = build_metadata_map(series_ids)
 
+        mask_unavailable = config.get("mask_unavailable", True)
+        allow_leakage = config.get("allow_leakage", False)
+        vintage_dataset = VintageDataset(
+            vintage=vintage_date,
+            frequency=frequency,
+            data=df.copy(),
+            metadata=metadata,
+        )
+
+        if mask_unavailable:
+            df = vintage_dataset.get_available_series(as_of=vintage_date)
+            if isinstance(df.index, pd.PeriodIndex):
+                cutoff_period = pd.Period(vintage_date, freq=frequency)
+                df = df.loc[df.index <= cutoff_period]
+            df = df.dropna(how="all")
+            vintage_dataset = VintageDataset(
+                vintage=vintage_date,
+                frequency=frequency,
+                data=df.copy(),
+                metadata=metadata,
+            )
+
         obs = ObservedDataset(
             vintage=vintage_date,
             frequency=frequency,
@@ -83,13 +132,8 @@ class DatasetBuilder:
         )
 
         # Validate vintage (leakage check)
-        vd = VintageDataset(
-            vintage=vintage_date,
-            frequency=frequency,
-            data=df,
-            metadata=metadata,
-        )
-        vd.validate_no_leakage(vintage_date)
+        if not allow_leakage:
+            vintage_dataset.validate_no_leakage(vintage_date)
 
         return obs
 

@@ -76,17 +76,57 @@ class NIPAMapper:
       can compute growth rates.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, warmup_steps: int = 2) -> None:
         # Previous-period levels (initialised on first call)
         self._prev_Y_real: float | None = None
         self._prev_C_real: float | None = None
         self._prev_I_resid_real: float | None = None
         self._prev_P_bar_HH: float | None = None
         self._prev_P_core: float | None = None
+        self._warmup_steps = warmup_steps
+        self._call_count = 0
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def initialize_from_state(self, state: SimulationState) -> None:
+        """
+        Seed previous-period levels from the *initial* (pre-step) state so
+        that the first post-step growth rate is computed against a meaningful
+        baseline rather than being zero or blowing up.
+        """
+        agg = state.aggregate
+        workers_act = state.workers_act
+        firms = state.firms
+        bank = state.bank
+
+        self._prev_Y_real = agg.Y_real if agg.Y_real > 0 else agg.Y / max(agg.P_bar, 1e-10)
+
+        C_nominal = (
+            workers_act.C_h.sum()
+            + state.workers_inact.C_h.sum()
+            + firms.C_h_i.sum()
+            + bank.C_h
+        )
+        P_HH = max(agg.P_bar_HH, 1e-10)
+        # If consumption is zero (pre-simulation), use Y_real as proxy
+        self._prev_C_real = max(C_nominal / P_HH, self._prev_Y_real * 0.68)
+
+        I_resid_nominal = (
+            workers_act.I_h.sum()
+            + state.workers_inact.I_h.sum()
+            + firms.I_h_i.sum()
+            + bank.I_h
+        )
+        P_CF = max(agg.P_bar_CF, 1e-10)
+        self._prev_I_resid_real = max(I_resid_nominal / P_CF, self._prev_Y_real * 0.04)
+
+        self._prev_P_bar_HH = agg.P_bar_HH
+
+        core_weights = np.array([0.0, 0.16, 0.06, 0.20, 0.14, 0.44])
+        core_weights /= core_weights.sum()
+        self._prev_P_core = max(float(np.dot(core_weights, agg.P_bar_g)), 1e-10)
 
     def map(self, state: SimulationState) -> ObservableSnapshot:
         """Compute observables from a post-step SimulationState."""
@@ -102,7 +142,13 @@ class NIPAMapper:
 
         # ── GDP ──────────────────────────────────────────────────────────
         Y_real = agg.Y_real if agg.Y_real > 0 else agg.Y / max(agg.P_bar, 1e-10)
-        gdp_growth_qoq = self._annualised_growth(Y_real, self._prev_Y_real)
+        self._call_count += 1
+        if self._call_count <= self._warmup_steps:
+            # During warm-up, use calibrated expected growth to avoid
+            # transient oscillations from model initialisation.
+            gdp_growth_qoq = ((1.0 + agg.gamma_e) ** 4 - 1.0) * 100.0
+        else:
+            gdp_growth_qoq = self._annualised_growth(Y_real, self._prev_Y_real)
 
         # ── Consumption ──────────────────────────────────────────────────
         C_nominal = (
@@ -141,9 +187,10 @@ class NIPAMapper:
                                                       is_price=True)
 
         # ── Labour market ────────────────────────────────────────────────
-        H_act = workers_act.n_workers
+        n_employed = int(np.sum(workers_act.O_h > 0))
         n_unemployed = int(np.sum(workers_act.O_h == 0))
-        unemployment_rate = 100.0 * n_unemployed / max(H_act, 1)
+        labour_force = n_employed + n_unemployed
+        unemployment_rate = 100.0 * n_unemployed / max(labour_force, 1)
 
         # ── Fed Funds Rate ───────────────────────────────────────────────
         # Model stores quarterly rate; convert to annualised %
