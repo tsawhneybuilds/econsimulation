@@ -147,17 +147,13 @@ class DatasetBuilder:
         return load_fixture(fixture_path, series_ids)
 
     def _load_fred(self, config: Dict[str, Any], series_ids: list[str]) -> pd.DataFrame:
-        fred_dir = Path(config.get("fred_dir", "data/fred"))
-        frames = {}
-        for sid in series_ids:
-            path = fred_dir / f"{sid}.csv"
-            if path.exists():
-                from .loaders import load_fred_csv
-                s = load_fred_csv(path, sid)
-                frames[sid] = s
-        if not frames:
-            raise FileNotFoundError(f"No FRED data found in {fred_dir}")
-        return pd.DataFrame(frames)
+        from .fred_loader import FREDLiveLoader
+        loader = FREDLiveLoader(
+            api_key=config.get("fred_api_key"),
+            vintage_date=config.get("vintage_date", "2019-12-31"),
+            start_date=config.get("start_date", "1990-01-01"),
+        )
+        return loader.load(series_ids)
 
 
 def _generate_synthetic_fixture(tier: str, series_ids: list[str]) -> pd.DataFrame:

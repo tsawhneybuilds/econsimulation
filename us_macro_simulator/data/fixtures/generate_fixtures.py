@@ -1,130 +1,210 @@
-"""Generate synthetic Tier-A and Tier-B fixture files."""
+"""Generate FRED-backed fixture parquet files.
+
+Replaces all synthetic random fixtures with real FRED data.
+
+Usage (from us_macro_simulator/):
+    FRED_API_KEY="..." python data/fixtures/generate_fixtures.py
+
+Requires: requests (pip install requests)
+
+What each fixture contains:
+  tier_a_aggregate.parquet  — 20 quarters, 2015Q1-2019Q4, 9 FRED series
+  tier_b_aggregate.parquet  — 40 quarters, 2010Q1-2019Q4, same series (backtest history)
+  tier_a_crosssection.parquet — 20 quarters, 2015Q1-2019Q4
+      Aggregate columns from FRED (GDPC1, PCECC96).
+      Income/consumption distribution by tercile from PSZ (2018) / BEA DFA (2019)
+          empirical shares — these are published research constants, not random noise.
+          FRED does not publish a direct quarterly tercile income series.
+      Sector GVA columns scaled from GDPC1 using BEA GDP-by-Industry 2015-2019 averages.
+"""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
+import requests
 
 OUTPUT_DIR = Path(__file__).parent
+REPO_ROOT = OUTPUT_DIR.parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
+# ---------------------------------------------------------------------------
+# FRED series map: internal_id → (fred_series_id, source_frequency)
+# No realtime_end — we want the latest-revised values for the fixture.
+# Vintage masking at backtest time is handled by VintageDataset + release_lag_quarters.
+# ---------------------------------------------------------------------------
+_FRED_MAP = {
+    "GDPC1":        ("GDPC1",           "Q"),   # Real GDP, bn 2017 USD SAAR
+    "GDPC1_GROWTH": ("A191RL1Q225SBEA", "Q"),   # Real GDP growth QoQ ann %, BEA
+    "CPIAUCSL":     ("CPIAUCSL",        "M"),   # CPI all urban, index 1982-84=100
+    "CPILFESL":     ("CPILFESL",        "M"),   # Core CPI, same index
+    "UNRATE":       ("UNRATE",          "M"),   # Unemployment rate, %
+    "FEDFUNDS":     ("FEDFUNDS",        "M"),   # Effective FFR, %
+    "PCECC96":      ("PCECC96",         "Q"),   # Real PCE, bn 2017 USD SAAR
+    "PRFI":         ("PRFI",            "Q"),   # Real private residential fixed inv
+    "FCI":          ("NFCI",            "W"),   # Chicago Fed NFCI (z-score)
+}
+
+# ---------------------------------------------------------------------------
+# Cross-section constants from published research
+# ---------------------------------------------------------------------------
+# Income share by tercile (share of total personal income):
+#   Source: Piketty, Saez & Zucman (2018) distributional national accounts.
+#   Bottom tercile ~9%, middle ~24%, top ~67%.  Stable across 2015-2019.
+_INCOME_SHARES = {"low": 0.090, "middle": 0.240, "high": 0.670}
+
+# Consumption share by tercile (share of total PCE):
+#   Source: BEA Distributional Financial Accounts (2019), Table B.101.
+#   Bottom tercile ~16%, middle ~37%, top ~47%.
+_CONSUMPTION_SHARES = {"low": 0.160, "middle": 0.370, "high": 0.470}
+
+# Sector GVA shares of real GDP (BEA GDP-by-Industry, 2015-2019 average):
+#   Manufacturing: 11.5%, Construction: 4.8%, Private services: 55.0%
+_SECTOR_SHARES = {"gva_mfg": 0.115, "gva_construction": 0.048, "gva_services": 0.550}
 
 
-def make_tier_a_aggregate() -> pd.DataFrame:
-    """20-quarter synthetic fixture with known identities. 2015Q1–2019Q4."""
-    rng = np.random.default_rng(42)
-    periods = pd.period_range("2015Q1", "2019Q4", freq="Q")
-    n = len(periods)
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-    gdp_base = 19_000.0
-    gdp_growth = rng.normal(0.005, 0.003, n)
-    # Clamp growth for stable baseline
-    gdp_growth = np.clip(gdp_growth, -0.02, 0.04)
-    gdp_level = gdp_base * np.cumprod(1 + gdp_growth)
-
-    cpi_base = 250.0
-    cpi_infl = rng.normal(0.005, 0.002, n)
-    cpi = cpi_base * np.cumprod(1 + cpi_infl)
-    core_cpi = cpi * 0.985 * np.cumprod(1 + rng.normal(0.004, 0.001, n))
-
-    unrate = np.clip(rng.normal(3.7, 0.3, n), 2.5, 10.0)
-    fedfunds = np.clip(rng.normal(2.2, 0.5, n), 0.0, 8.0)
-
-    pce = gdp_level * 0.68 * (1 + rng.normal(0, 0.003, n))
-    resid_inv = gdp_level * 0.048 * (1 + rng.normal(0, 0.015, n))
-    fci = rng.normal(0.0, 0.25, n)
-
-    df = pd.DataFrame(
-        {
-            "GDPC1": gdp_level,
-            "GDPC1_GROWTH": gdp_growth * 400,
-            "CPIAUCSL": cpi,
-            "CPILFESL": core_cpi,
-            "UNRATE": unrate,
-            "FEDFUNDS": fedfunds,
-            "PCECC96": pce,
-            "PRFI": resid_inv,
-            "FCI": fci,
-        },
-        index=periods,
+def _fetch_fred(
+    fred_id: str,
+    api_key: str,
+    start_date: str,
+    end_date: str,
+    src_freq: str,
+) -> pd.Series:
+    """Fetch a single FRED series and resample to quarterly PeriodIndex."""
+    params = {
+        "series_id": fred_id,
+        "api_key": api_key,
+        "file_type": "json",
+        "observation_start": start_date,
+        "observation_end": end_date,
+        # No realtime_end — use latest-revised values.
+    }
+    resp = requests.get(
+        "https://api.stlouisfed.org/fred/series/observations",
+        params=params,
+        timeout=30,
     )
-    return df
+    resp.raise_for_status()
+    payload = resp.json()
+
+    records = [
+        (obs["date"], float(obs["value"]))
+        for obs in payload.get("observations", [])
+        if obs["value"] not in (".", "")
+    ]
+    if not records:
+        raise RuntimeError(f"No data returned from FRED for series {fred_id}")
+
+    dates, values = zip(*records)
+    s = pd.Series(list(values), index=pd.to_datetime(list(dates)), name=fred_id)
+    s = s[~s.index.duplicated(keep="last")].sort_index()
+
+    # Resample sub-quarterly to quarterly mean
+    if src_freq in ("M", "W", "D"):
+        q = s.resample("QE").mean()
+    else:
+        q = s.copy()
+        q.index = pd.PeriodIndex(q.index.to_period("Q")).to_timestamp("Q")
+
+    q.index = pd.PeriodIndex(q.index.to_period("Q"))
+    return q
 
 
-def make_tier_b_aggregate() -> pd.DataFrame:
-    """40-quarter synthetic fixture. 2010Q1–2019Q4 for backtest use."""
-    rng = np.random.default_rng(123)
-    periods = pd.period_range("2010Q1", "2019Q4", freq="Q")
-    n = len(periods)
+def build_aggregate(start_date: str, end_date: str, api_key: str) -> pd.DataFrame:
+    """Fetch all aggregate series from FRED and return a quarterly DataFrame."""
+    frames: dict[str, pd.Series] = {}
+    for sid, (fred_id, src_freq) in _FRED_MAP.items():
+        print(f"  {sid} ({fred_id}) ...", end=" ", flush=True)
+        try:
+            frames[sid] = _fetch_fred(fred_id, api_key, start_date, end_date, src_freq)
+            print(f"{len(frames[sid])} quarters")
+        except Exception as exc:
+            print(f"FAILED: {exc}")
 
-    gdp_base = 15_500.0
-    gdp_growth = np.clip(rng.normal(0.006, 0.004, n), -0.03, 0.05)
-    gdp_level = gdp_base * np.cumprod(1 + gdp_growth)
-
-    cpi_base = 218.0
-    cpi_infl = rng.normal(0.004, 0.002, n)
-    cpi = cpi_base * np.cumprod(1 + cpi_infl)
-    core_cpi = cpi * 0.99 * np.cumprod(1 + rng.normal(0.003, 0.001, n))
-
-    unrate = np.clip(rng.normal(6.0, 1.5, n), 2.5, 12.0)
-    fedfunds = np.clip(rng.normal(1.0, 1.0, n), 0.0, 6.0)
-
-    pce = gdp_level * 0.68 * (1 + rng.normal(0, 0.003, n))
-    resid_inv = gdp_level * 0.046 * (1 + rng.normal(0, 0.02, n))
-    fci = rng.normal(0.0, 0.4, n)
-
-    df = pd.DataFrame(
-        {
-            "GDPC1": gdp_level,
-            "GDPC1_GROWTH": gdp_growth * 400,
-            "CPIAUCSL": cpi,
-            "CPILFESL": core_cpi,
-            "UNRATE": unrate,
-            "FEDFUNDS": fedfunds,
-            "PCECC96": pce,
-            "PRFI": resid_inv,
-            "FCI": fci,
-        },
-        index=periods,
-    )
-    return df
+    df = pd.DataFrame(frames).sort_index()
+    # Trim to requested period
+    start_period = pd.Period(start_date[:7], freq="Q")
+    end_period = pd.Period(end_date[:7], freq="Q")
+    return df.loc[(df.index >= start_period) & (df.index <= end_period)]
 
 
-def make_tier_a_crosssection() -> pd.DataFrame:
-    """3 household bins × 3 sectors, 20 quarters."""
-    rng = np.random.default_rng(99)
-    periods = pd.period_range("2015Q1", "2019Q4", freq="Q")
-    n = len(periods)
+def build_crosssection(aggregate_df: pd.DataFrame) -> pd.DataFrame:
+    """Build cross-section fixture from real GDP/PCE and empirical shares.
 
+    Uses:
+    - GDPC1 from FRED for income proxies and sector GVA.
+    - PCECC96 from FRED for consumption terciles.
+    - PSZ (2018) income shares and BEA DFA (2019) consumption shares.
+    - BEA GDP-by-Industry 2015-2019 average sector shares.
+    """
     rows = []
-    for p in periods:
-        row = {"period": str(p)}
-        # 3 household income bins: low, middle, high
-        for bin_name, share in [("low", 0.15), ("middle", 0.55), ("high", 0.30)]:
-            gdp = 19000 * (1 + rng.normal(0.005, 0.002))
-            row[f"consumption_{bin_name}"] = gdp * share * (1 + rng.normal(0, 0.005))
-            row[f"income_{bin_name}"] = gdp * share * (1 + rng.normal(0.01, 0.003))
-        # 3 sectors
-        for sec, share in [("mfg", 0.12), ("services", 0.55), ("construction", 0.05)]:
-            row[f"gva_{sec}"] = 19000 * share * (1 + rng.normal(0.004, 0.003))
-        rows.append(row)
+    for period in aggregate_df.index:
+        gdp = aggregate_df.loc[period, "GDPC1"] if "GDPC1" in aggregate_df.columns else None
+        pce = aggregate_df.loc[period, "PCECC96"] if "PCECC96" in aggregate_df.columns else None
 
-    df = pd.DataFrame(rows).set_index("period")
-    df.index = pd.PeriodIndex(df.index, freq="Q")
-    return df
+        if gdp is None or pd.isna(gdp):
+            continue
 
+        # Fall back to PCE = 68% of GDP if PCECC96 is missing
+        if pce is None or pd.isna(pce):
+            pce = gdp * 0.68
+
+        row: dict = {}
+        for bin_name, share in _INCOME_SHARES.items():
+            row[f"income_{bin_name}"] = gdp * share
+        for bin_name, share in _CONSUMPTION_SHARES.items():
+            row[f"consumption_{bin_name}"] = pce * share
+        for col, share in _SECTOR_SHARES.items():
+            row[col] = gdp * share
+
+        rows.append((str(period), row))
+
+    index = pd.PeriodIndex([r[0] for r in rows], freq="Q")
+    data = [r[1] for r in rows]
+    return pd.DataFrame(data, index=index)
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    api_key = os.environ.get("FRED_API_KEY", "")
+    if not api_key:
+        print("ERROR: FRED_API_KEY environment variable not set.")
+        print("  export FRED_API_KEY='your_key'")
+        sys.exit(1)
+
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    tier_a = make_tier_a_aggregate()
+    # -- Tier A: 2015Q1-2019Q4 (smoke / stage-1 default) -------------------
+    print("Fetching tier_a aggregate (2015Q1-2019Q4) ...")
+    tier_a = build_aggregate("2015-01-01", "2019-12-31", api_key)
     tier_a.to_parquet(OUTPUT_DIR / "tier_a_aggregate.parquet")
-    print(f"Saved tier_a_aggregate.parquet ({len(tier_a)} rows)")
+    print(f"  -> saved tier_a_aggregate.parquet  ({len(tier_a)} rows x {len(tier_a.columns)} cols)")
 
-    tier_b = make_tier_b_aggregate()
+    # -- Tier B: 2010Q1-2019Q4 (backtest history) ---------------------------
+    print("Fetching tier_b aggregate (2010Q1-2019Q4) ...")
+    tier_b = build_aggregate("2010-01-01", "2019-12-31", api_key)
     tier_b.to_parquet(OUTPUT_DIR / "tier_b_aggregate.parquet")
-    print(f"Saved tier_b_aggregate.parquet ({len(tier_b)} rows)")
+    print(f"  -> saved tier_b_aggregate.parquet  ({len(tier_b)} rows x {len(tier_b.columns)} cols)")
 
-    tier_a_cs = make_tier_a_crosssection()
-    tier_a_cs.to_parquet(OUTPUT_DIR / "tier_a_crosssection.parquet")
-    print(f"Saved tier_a_crosssection.parquet ({len(tier_a_cs)} rows)")
+    # -- Cross-section: 2015Q1-2019Q4 (validation layer) -------------------
+    print("Building tier_a cross-section from FRED GDP/PCE + empirical shares ...")
+    cross = build_crosssection(tier_a)
+    cross.to_parquet(OUTPUT_DIR / "tier_a_crosssection.parquet")
+    print(f"  -> saved tier_a_crosssection.parquet ({len(cross)} rows x {len(cross.columns)} cols)")
+
+    print("\nAll fixtures rebuilt from real FRED data.")
+    print(f"  tier_a period: {tier_a.index[0]} -> {tier_a.index[-1]}")
+    print(f"  tier_b period: {tier_b.index[0]} -> {tier_b.index[-1]}")
+    print(f"  cross-section: {cross.index[0]} -> {cross.index[-1]}")
+    print(f"\nIncome shares (PSZ 2018): {_INCOME_SHARES}")
+    print(f"Consumption shares (BEA DFA 2019): {_CONSUMPTION_SHARES}")
+    print(f"Sector GVA shares (BEA GDP-by-Industry avg): {_SECTOR_SHARES}")

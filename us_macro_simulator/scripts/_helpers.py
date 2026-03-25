@@ -54,6 +54,8 @@ def build_dataset_from_config(
             "vintage_date": vintage_date.date().isoformat(),
             "mask_unavailable": config.get("mask_unavailable", True),
             "allow_leakage": config.get("allow_leakage", False),
+            "fred_api_key": config.get("fred_api_key"),
+            "start_date": config.get("start_date", "1990-01-01"),
         },
         vintage_date=vintage_date,
     )
@@ -61,12 +63,15 @@ def build_dataset_from_config(
 
 
 def build_backtest_config(config_path: str | Path) -> BacktestConfig:
+    import os
     config = load_yaml(config_path)
     return BacktestConfig(
         start_origin=config["origins"]["start"],
         end_origin=config["origins"]["end"],
         horizon=int(config["horizon"]),
         fixture_tier=config.get("fixture_tier", "tier_b"),
+        data_source=config.get("data_source", "fixture"),
+        fred_api_key=config.get("fred_api_key") or os.environ.get("FRED_API_KEY"),
         variables=config.get("variables") or BacktestConfig().variables,
     )
 

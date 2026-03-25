@@ -32,6 +32,7 @@ class BacktestConfig:
     seed: int = 42
     fixture_tier: str = "tier_b"
     data_source: str = "fixture"
+    fred_api_key: Optional[str] = None
     variables: List[str] = field(default_factory=lambda: [
         "gdp_growth",
         "cpi_inflation",
@@ -226,18 +227,24 @@ class BacktestRunner:
             "vintage_date": effective_as_of.date().isoformat(),
             "mask_unavailable": True,
             "allow_leakage": False,
+            "fred_api_key": self.config.fred_api_key,
+            "start_date": "1990-01-01",
         }
         return builder.build(config, vintage_date=effective_as_of)
 
     def _build_actuals(self) -> pd.DataFrame:
         builder = DatasetBuilder()
+        # For actuals we use a far-future vintage so all data is unmasked,
+        # then convert to target variables for scorecard comparison.
         config = {
             "source": self.config.data_source,
             "frequency": "Q",
             "fixture_tier": self.config.fixture_tier,
             "vintage_date": "2100-01-01",
-            "mask_unavailable": True,
-            "allow_leakage": False,
+            "mask_unavailable": False,
+            "allow_leakage": True,
+            "fred_api_key": self.config.fred_api_key,
+            "start_date": "1990-01-01",
         }
         dataset = builder.build(config, vintage_date=datetime(2100, 1, 1))
         return self._to_target_variables(dataset.data)
