@@ -1,0 +1,22 @@
+extends: configs/base/config.yaml
+
+simulation:
+  origin_quarter: "2019Q4"
+  horizon: 8
+  seed: 42
+  n_firms: 100
+  n_workers: 1000
+
+calibration:
+  reference_quarter: "2019Q4"
+  source: us_baseline_2019q4
+
+data:
+  source: fixture
+  fixture_tier: tier_a
+  vintage_date: "2019-12-31"
+
+output:
+  dir: outputs
+  save_state: true
+  save_forecasts: true

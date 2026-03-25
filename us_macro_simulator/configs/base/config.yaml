@@ -1,0 +1,23 @@
+simulation:
+  horizon: 8
+  seed: 42
+  frequency: Q
+  n_firms: 100
+  n_workers: 1000
+  n_sectors: 6
+
+sectors:
+  - Agriculture
+  - Manufacturing
+  - Construction
+  - Trade_Transport
+  - Finance_RE
+  - Services
+
+data:
+  source: fixture
+  fixture_tier: tier_a
+  vintage_date: "2019-12-31"
+
+logging:
+  level: INFO

@@ -1,0 +1,19 @@
+hard_gates:
+  accounting_identity_tolerance: 1.0e-6
+  nan_inf_allowed: false
+  vintage_leakage_allowed: false
+  reproducibility_required: true
+
+performance_gates:
+  max_runtime_seconds: 300
+  max_memory_mb: 2048
+
+forecast_gates:
+  max_rmse_gdp: 3.0
+  max_rmse_cpi: 2.0
+  min_coverage_50pct: 0.35
+  min_coverage_90pct: 0.75
+
+benchmark_gates:
+  must_beat_random_walk: false
+  relative_rmse_threshold: 2.0

@@ -1,0 +1,15 @@
+origins:
+  start: "2017Q1"
+  end: "2019Q4"
+horizon: 4
+fixture_tier: tier_b
+metrics:
+  - rmse
+  - mae
+  - crps
+  - coverage
+variables:
+  - gdp_growth
+  - cpi_inflation
+  - unemployment_rate
+  - fed_funds_rate

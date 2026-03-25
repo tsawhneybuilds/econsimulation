@@ -1,0 +1,16 @@
+benchmarks:
+  - random_walk
+  - ar4
+  - local_mean
+  - factor_model
+
+variables:
+  - gdp_growth
+  - cpi_inflation
+  - unemployment_rate
+  - fed_funds_rate
+  - consumption_growth
+
+horizon: 4
+vintage_date: "2019-12-31"
+fixture_tier: tier_b
