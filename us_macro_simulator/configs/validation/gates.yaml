@@ -17,3 +17,7 @@ forecast_gates:
 benchmark_gates:
   must_beat_random_walk: false
   relative_rmse_threshold: 2.0
+
+dsge_gates:
+  must_beat_dsge: false          # hard gate — false for Stage 1
+  max_relative_rmse_vs_dsge: 3.0 # soft gate — warn if simulator is >3x worse than DSGE

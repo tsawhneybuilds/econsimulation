@@ -73,6 +73,7 @@ def build_backtest_config(config_path: str | Path) -> BacktestConfig:
         data_source=config.get("data_source", "fixture"),
         fred_api_key=config.get("fred_api_key") or os.environ.get("FRED_API_KEY"),
         variables=config.get("variables") or BacktestConfig().variables,
+        benchmark_names=config.get("benchmark_names") or BacktestConfig().benchmark_names,
     )
 
 

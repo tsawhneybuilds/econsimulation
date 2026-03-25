@@ -4,6 +4,7 @@ benchmarks:
   - local_mean
   - factor_model
   - semi_structural
+  - dsge_nyfed
 
 variables:
   - gdp_growth

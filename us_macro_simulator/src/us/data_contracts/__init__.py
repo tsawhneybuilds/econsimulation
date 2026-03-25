@@ -3,6 +3,7 @@ from .build_dataset import DatasetBuilder, ObservedDataset, _generate_synthetic_
 from .schema import SERIES_REGISTRY, SeriesSchema, SeriesMetadata, get_schema
 from .vintages import VintageDataset, VintageLeakageError
 from .loaders import load_fred_csv, load_fixture
+from .fred_loader import FREDLiveLoader
 
 __all__ = [
     "DatasetBuilder",
@@ -16,4 +17,5 @@ __all__ = [
     "VintageLeakageError",
     "load_fred_csv",
     "load_fixture",
+    "FREDLiveLoader",
 ]

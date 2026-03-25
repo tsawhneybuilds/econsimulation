@@ -45,11 +45,14 @@ def build_us_2019q4_calibration() -> CalibrationBundle:
     Sources: BEA NIPA Table 1.1.6 (advance), BLS, Federal Reserve H.15.
     """
     structural = StructuralParams(
-        I=100,
-        H_act=1000,
-        H_inact=200,
+        # Agent counts scaled up so LLN holds (was 100/1000/200 — too few to
+        # average out idiosyncratic shocks; each firm was 1% of the economy)
+        I=500,
+        H_act=5000,
+        H_inact=1000,
         G=6,
-        sector_weights=[0.012, 0.115, 0.048, 0.189, 0.212, 0.424],
+        # Sector value-added weights from BEA GDP-by-industry 2019 (close to prior)
+        sector_weights=[0.009, 0.114, 0.043, 0.175, 0.213, 0.446],
         tau_INC=0.22,
         tau_FIRM=0.21,
         tau_VAT=0.085,
@@ -59,9 +62,14 @@ def build_us_2019q4_calibration() -> CalibrationBundle:
         theta_UB=0.40,
         theta_DIV=0.55,
         alpha_bar=[0.85, 0.75, 0.80, 0.78, 0.72, 0.70],
-        beta=[0.12, 0.35, 0.28, 0.22, 0.15, 0.18],
+        # Intermediate goods share of gross output by sector, from BEA 2017 I-O use
+        # table (was guessed low at 0.12–0.35; BEA shows 0.28–0.55 across sectors)
+        # Sectors: Agriculture, Manufacturing, Construction, Trade/Trans, Finance/RE, Services
+        beta=[0.45, 0.55, 0.48, 0.40, 0.28, 0.35],
         kappa=[0.40, 0.55, 0.48, 0.45, 0.60, 0.42],
-        delta=[0.025, 0.040, 0.035, 0.030, 0.020, 0.025],
+        # Quarterly depreciation from BEA fixed assets by sector
+        # (was 2.5–4% quarterly = 10–16% annual; BEA weighted avg is ~6–8% annual)
+        delta=[0.015, 0.030, 0.022, 0.018, 0.010, 0.013],
         tau_Y=[0.02, 0.04, 0.03, 0.03, 0.02, 0.025],
         tau_K_sect=[0.015, 0.03, 0.025, 0.02, 0.015, 0.02],
     )

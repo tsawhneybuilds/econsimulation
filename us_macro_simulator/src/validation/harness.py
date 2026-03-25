@@ -58,6 +58,7 @@ class ValidationHarness:
                 backtest_result,
                 forecast_gates=self.gates.get("forecast_gates", {}),
                 benchmark_gates=self.gates.get("benchmark_gates", {}),
+                dsge_gates=self.gates.get("dsge_gates"),
             )
         )
         checks.extend(CrossSectionChecker().check(initial_state, observed_cross_section))
@@ -108,6 +109,7 @@ class ValidationHarness:
                 backtest_result,
                 forecast_gates=self.gates.get("forecast_gates", {}),
                 benchmark_gates=self.gates.get("benchmark_gates", {}),
+                dsge_gates=self.gates.get("dsge_gates"),
             )
         )
         checks.extend(BundleCrossSectionChecker().check(bundle.cross_section_summary, observed_cross_section))

@@ -8,6 +8,7 @@ from .ar_benchmark import ARBenchmark
 from .local_mean import LocalMeanBenchmark
 from .factor_model import FactorModelBenchmark
 from .semi_structural import SemiStructuralBenchmark
+from .dsge_nyfed import NYFedDSGEBenchmark
 
 BENCHMARK_REGISTRY: Dict[str, Any] = {
     "random_walk": RandomWalkBenchmark(),
@@ -15,6 +16,7 @@ BENCHMARK_REGISTRY: Dict[str, Any] = {
     "local_mean": LocalMeanBenchmark(window=8),
     "factor_model": FactorModelBenchmark(n_factors=2, ar_order=2),
     "semi_structural": SemiStructuralBenchmark(),
+    "dsge_nyfed": NYFedDSGEBenchmark(),
 }
 
 

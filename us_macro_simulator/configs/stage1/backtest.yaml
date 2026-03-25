@@ -13,3 +13,10 @@ variables:
   - cpi_inflation
   - unemployment_rate
   - fed_funds_rate
+benchmark_names:
+  - random_walk
+  - ar4
+  - local_mean
+  - factor_model
+  - semi_structural
+  - dsge_nyfed

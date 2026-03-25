@@ -261,7 +261,7 @@ class BacktestRunner:
             benchmark = get_benchmark(bench_name)
             bench_df = pd.DataFrame(index=forecast_index, columns=self.config.variables, dtype=float)
 
-            if bench_name == "semi_structural":
+            if bench_name in ("semi_structural", "dsge_nyfed"):
                 predicted = benchmark.forecast(
                     available_history,
                     horizon=len(forecast_index),

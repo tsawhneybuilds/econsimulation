@@ -100,7 +100,7 @@ class USInitializer:
         alpha_bar_i = (Y_i / np.maximum(N_i, 1)) * (1 + rng.normal(0, 0.02, I))
 
         # Wage per worker consistent with production
-        w_bar_i = Y_i * 0.55 / np.maximum(N_i, 1)  # ~55% labour share
+        w_bar_i = Y_i * 0.57 / np.maximum(N_i, 1)  # BEA 2019Q4 compensation share ~56.7%
 
         firms = FirmState(
             G_i=G_i,
@@ -152,8 +152,8 @@ class USInitializer:
         H_inact = s.H_inact
         H_unemployed = H_act - H_employed
 
-        # Base wage: labour share (~55%) of GDP spread across employed workers
-        w_base = Y_0 * 0.55 / max(H_employed, 1)
+        # Base wage: labour share (~57%) of GDP spread across employed workers (BEA 2019)
+        w_base = Y_0 * 0.57 / max(H_employed, 1)
         w_h_act = rng.lognormal(np.log(w_base), 0.3, H_act)
         O_h_act = np.zeros(H_act, dtype=int)
         # Assign employed workers to firms (1-indexed: 0=unemployed)
@@ -252,7 +252,7 @@ class USInitializer:
             alpha_I=sp.alpha_I,
             beta_I=sp.beta_I,
             sigma_I=sp.sigma_I,
-            Y_ROW=80_000.0,   # rough global ex-US GDP proxy
+            Y_ROW=57_000.0,   # world ex-US GDP 2019 (~$57T nominal; US ≈ $19T → ROW ≈ 3x)
             gamma_ROW=0.006,
             pi_ROW=0.005,
             alpha_pi_ROW=sp.alpha_pi_ROW,

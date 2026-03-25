@@ -1,0 +1,42 @@
+# configs/stage1/data_fred.yaml
+#
+# Stage 1 data config — FRED live source
+#
+# Switch to this config by passing:
+#   --data-config configs/stage1/data_fred.yaml
+# to run_stage1.py, run_smoke.py, build_dataset.py, or run_validation.py.
+#
+# Prerequisites:
+#   pip install requests
+#   export FRED_API_KEY="your_key_here"
+#   (free key at https://fred.stlouisfed.org/docs/api/api_key.html)
+
+source: fred
+frequency: Q
+vintage_date: "2019-12-31"
+
+# FRED API key — strongly prefer the env var over hardcoding here:
+#   export FRED_API_KEY="your_key"
+# Uncomment only if you cannot use env vars:
+# fred_api_key: "YOUR_KEY_HERE"
+
+# Earliest observation to pull from FRED
+start_date: "1990-01-01"
+
+mask_unavailable: true
+allow_leakage: false
+
+# Explicit series list — must match keys in SERIES_REGISTRY / _MAP in fred_loader.py
+# Omit this block to use all series defined in SERIES_REGISTRY.
+series:
+  - GDPC1
+  - GDPC1_GROWTH
+  - CPIAUCSL
+  - CPILFESL
+  - UNRATE
+  - FEDFUNDS
+  - PCECC96
+  - PRFI
+  - FCI
+  - TB3MS
+  - GS10

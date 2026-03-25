@@ -27,6 +27,7 @@ class ForecastEvaluator:
         result: BacktestResult,
         forecast_gates: Dict[str, float],
         benchmark_gates: Dict[str, float],
+        dsge_gates: Dict[str, float] | None = None,
     ) -> List[ValidationCheck]:
         checks: List[ValidationCheck] = []
         variable_metrics: Dict[str, Dict[str, List[float]]] = {}
@@ -110,6 +111,97 @@ class ForecastEvaluator:
                     severity="hard",
                     summary="Simulator beats the random walk benchmark on average RMSE.",
                     details={"average_relative_rmse": avg_relative},
+                )
+            )
+
+        # DSGE comparison check
+        if dsge_gates and not result.comparison_table.empty:
+            checks.extend(self._check_dsge(result, dsge_gates))
+
+        return checks
+
+    def _check_dsge(
+        self,
+        result: BacktestResult,
+        dsge_gates: Dict[str, float],
+    ) -> List[ValidationCheck]:
+        """Compare simulator RMSE against the NY Fed DSGE benchmark."""
+        checks: List[ValidationCheck] = []
+        ct = result.comparison_table
+
+        if "model" not in ct.columns or "rmse" not in ct.columns:
+            return checks
+
+        dsge_rows = ct[ct["model"] == "dsge_nyfed"]
+        sim_rows = ct[ct["model"] == "simulator"] if "simulator" in ct["model"].values else ct[ct["model"] == "sim"]
+
+        if dsge_rows.empty or sim_rows.empty:
+            checks.append(
+                ValidationCheck(
+                    name="dsge_nyfed_available",
+                    passed=False,
+                    severity="soft",
+                    summary="NY Fed DSGE benchmark rows not found in comparison table — cache may be missing.",
+                    details={"models_present": ct["model"].unique().tolist()},
+                )
+            )
+            return checks
+
+        checks.append(
+            ValidationCheck(
+                name="dsge_nyfed_available",
+                passed=True,
+                severity="soft",
+                summary="NY Fed DSGE benchmark forecasts loaded and compared.",
+                details={"n_dsge_rows": len(dsge_rows)},
+            )
+        )
+
+        # Compute average RMSE for simulator vs DSGE across shared variables
+        shared_vars = set(dsge_rows["variable"].unique()) & set(sim_rows["variable"].unique())
+        if not shared_vars:
+            return checks
+
+        ratios = []
+        for var in shared_vars:
+            sim_rmse_vals = sim_rows[sim_rows["variable"] == var]["rmse"].dropna()
+            dsge_rmse_vals = dsge_rows[dsge_rows["variable"] == var]["rmse"].dropna()
+            if sim_rmse_vals.empty or dsge_rmse_vals.empty:
+                continue
+            sim_avg = float(sim_rmse_vals.mean())
+            dsge_avg = float(dsge_rmse_vals.mean())
+            if dsge_avg > 0:
+                ratios.append(sim_avg / dsge_avg)
+
+        if not ratios:
+            return checks
+
+        avg_ratio = float(np.mean(ratios))
+        threshold = dsge_gates.get("max_relative_rmse_vs_dsge", 3.0)
+        must_beat = dsge_gates.get("must_beat_dsge", False)
+
+        checks.append(
+            ValidationCheck(
+                name="relative_rmse_vs_dsge",
+                passed=avg_ratio <= threshold,
+                severity="soft",
+                summary="Simulator RMSE relative to NY Fed DSGE is within tolerance.",
+                details={
+                    "average_relative_rmse_vs_dsge": avg_ratio,
+                    "threshold": threshold,
+                    "variables_compared": sorted(shared_vars),
+                },
+            )
+        )
+
+        if must_beat:
+            checks.append(
+                ValidationCheck(
+                    name="must_beat_dsge",
+                    passed=avg_ratio < 1.0,
+                    severity="hard",
+                    summary="Simulator must outperform the NY Fed DSGE benchmark on average RMSE.",
+                    details={"average_relative_rmse_vs_dsge": avg_ratio},
                 )
             )
 
