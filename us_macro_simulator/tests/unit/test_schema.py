@@ -11,7 +11,21 @@ def test_registry_not_empty():
 
 
 def test_all_required_series_present():
-    required = ["GDPC1", "CPIAUCSL", "CPILFESL", "UNRATE", "FEDFUNDS", "PCECC96", "PRFI"]
+    required = [
+        "GDPC1",
+        "CPIAUCSL",
+        "CPILFESL",
+        "UNRATE",
+        "FEDFUNDS",
+        "PCECC96",
+        "PRFI",
+        "TB3MS",
+        "GS10",
+        "GDPDEF",
+        "PNFIC1",
+        "HOANBS",
+        "CES0500000003",
+    ]
     for sid in required:
         assert sid in SERIES_REGISTRY, f"{sid} missing from registry"
 
@@ -41,6 +55,12 @@ def test_frequency_valid():
     for sid, schema in SERIES_REGISTRY.items():
         assert schema.metadata.frequency in valid_freqs, \
             f"{sid} has invalid frequency: {schema.metadata.frequency}"
+
+
+def test_release_calendar_keys_are_strings_when_present():
+    for sid, schema in SERIES_REGISTRY.items():
+        key = schema.metadata.release_calendar_key
+        assert key is None or isinstance(key, str), f"{sid} has invalid release_calendar_key: {key!r}"
 
 
 def test_unrate_bounds():

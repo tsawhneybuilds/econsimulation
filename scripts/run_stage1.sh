@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="${ROOT_DIR}/outputs/stage1"
 AGGREGATE_CSV=""
+CALIBRATION_BUNDLE_DIR=""
 START_ORIGIN="2017Q1"
 END_ORIGIN="2019Q4"
 HORIZON="4"
@@ -21,6 +22,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --aggregate-csv)
       AGGREGATE_CSV="$2"
+      DATA_MODE="real"
+      shift 2
+      ;;
+    --calibration-bundle-dir)
+      CALIBRATION_BUNDLE_DIR="$2"
       DATA_MODE="real"
       shift 2
       ;;
@@ -64,7 +70,7 @@ mkdir -p "${OUTPUT_DIR}"
 export PATH="${HOME}/.juliaup/bin:${PATH}"
 JULIA_BIN="$(command -v julia)"
 
-if [[ -z "${AGGREGATE_CSV}" ]]; then
+if [[ -z "${AGGREGATE_CSV}" && -z "${CALIBRATION_BUNDLE_DIR}" ]]; then
   INPUT_DIR="${OUTPUT_DIR}/inputs"
   mkdir -p "${INPUT_DIR}"
   python3 "${ROOT_DIR}/us_macro_simulator/scripts/export_fixture_inputs.py" \
@@ -73,19 +79,44 @@ if [[ -z "${AGGREGATE_CSV}" ]]; then
   AGGREGATE_CSV="$(tail -n 1 /tmp/us_fixture_path.txt)"
 fi
 
+if [[ -z "${CALIBRATION_BUNDLE_DIR}" ]]; then
+  CALIBRATION_BUNDLE_DIR="${OUTPUT_DIR}/inputs/calibration_bundle"
+  mkdir -p "${CALIBRATION_BUNDLE_DIR}"
+  BUILD_ARGS=(
+    --output-dir "${CALIBRATION_BUNDLE_DIR}"
+    --reference-quarter "2019Q4"
+  )
+  if [[ -n "${AGGREGATE_CSV}" ]]; then
+    BUILD_ARGS+=(--aggregate-csv "${AGGREGATE_CSV}")
+  else
+    BUILD_ARGS+=(--fixture-tier "${FIXTURE_TIER}")
+  fi
+  python3 "${ROOT_DIR}/us_macro_simulator/scripts/build_us_calibration_bundle.py" "${BUILD_ARGS[@]}" >/tmp/us_calibration_bundle_path.txt
+  CALIBRATION_BUNDLE_DIR="$(tail -n 1 /tmp/us_calibration_bundle_path.txt)"
+fi
+
 BUNDLE_DIR="${OUTPUT_DIR}/julia_bundle"
 mkdir -p "${BUNDLE_DIR}"
 
-"${JULIA_BIN}" --project="${ROOT_DIR}/BeforeIT.jl" "${ROOT_DIR}/BeforeIT.jl/scripts/run_us_stage1.jl" \
-  --aggregate-csv "${AGGREGATE_CSV}" \
-  --output-dir "${BUNDLE_DIR}" \
-  --calibration-date "${CALIBRATION_DATE}" \
-  --start-origin "${START_ORIGIN}" \
-  --end-origin "${END_ORIGIN}" \
-  --horizon "${HORIZON}" \
-  --n-sims "${N_SIMS}" \
-  --seed "${SEED}" \
+JULIA_ARGS=(
+  --project="${ROOT_DIR}/BeforeIT.jl"
+  "${ROOT_DIR}/BeforeIT.jl/scripts/run_us_stage1.jl"
+  --bundle-dir "${CALIBRATION_BUNDLE_DIR}"
+  --output-dir "${BUNDLE_DIR}"
+  --calibration-date "${CALIBRATION_DATE}"
+  --start-origin "${START_ORIGIN}"
+  --end-origin "${END_ORIGIN}"
+  --horizon "${HORIZON}"
+  --n-sims "${N_SIMS}"
+  --seed "${SEED}"
   --data-mode "${DATA_MODE}"
+)
+
+if [[ -n "${AGGREGATE_CSV}" ]]; then
+  JULIA_ARGS+=(--aggregate-csv "${AGGREGATE_CSV}")
+fi
+
+"${JULIA_BIN}" "${JULIA_ARGS[@]}"
 
 python3 "${ROOT_DIR}/us_macro_simulator/scripts/run_stage1.py" \
   --bundle-dir "${BUNDLE_DIR}" \

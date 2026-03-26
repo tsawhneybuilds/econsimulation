@@ -4,6 +4,14 @@ from .schema import SERIES_REGISTRY, SeriesSchema, SeriesMetadata, get_schema
 from .vintages import VintageDataset, VintageLeakageError
 from .loaders import load_fred_csv, load_fixture
 from .fred_loader import FREDLiveLoader
+from .release_manifest import ReleaseManifest, ReleaseManifestEntry
+from .official_sources import (
+    BEASourceClient,
+    CensusAPIClient,
+    FederalReserveSourceClient,
+    FREDRealtimeSourceClient,
+    OECDSourceClient,
+)
 
 __all__ = [
     "DatasetBuilder",
@@ -18,4 +26,11 @@ __all__ = [
     "load_fred_csv",
     "load_fixture",
     "FREDLiveLoader",
+    "ReleaseManifest",
+    "ReleaseManifestEntry",
+    "BEASourceClient",
+    "CensusAPIClient",
+    "FederalReserveSourceClient",
+    "FREDRealtimeSourceClient",
+    "OECDSourceClient",
 ]

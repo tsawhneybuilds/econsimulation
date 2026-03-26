@@ -71,6 +71,17 @@ class TestFREDLiveLoaderUnit:
         loader = self._loader("2019-06-30")
         assert loader.vintage_date == date(2019, 6, 30)
 
+    def test_extended_series_are_mapped(self):
+        required = {
+            "GDPDEF",
+            "PNFIC1",
+            "HOANBS",
+            "CES0500000003",
+            "TB3MS",
+            "GS10",
+        }
+        assert required.issubset(_MAP)
+
     # --- _fetch_series ---
 
     def test_fetch_series_parses_observations(self):

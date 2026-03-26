@@ -61,6 +61,10 @@ _MAP: Dict[str, Tuple[str, str, str]] = {
     "FCI":          ("NFCI",            "W", "quarterly_mean"),
     "TB3MS":        ("TB3MS",           "M", "quarterly_mean"),
     "GS10":         ("GS10",            "M", "quarterly_mean"),
+    "GDPDEF":       ("GDPDEF",          "Q", "level"),
+    "PNFIC1":       ("PNFIC1",          "Q", "level"),
+    "HOANBS":       ("HOANBS",          "Q", "level"),
+    "CES0500000003": ("CES0500000003",  "M", "quarterly_mean"),
 }
 
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"

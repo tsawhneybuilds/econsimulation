@@ -15,6 +15,7 @@ class SeriesMetadata:
     transform: str  # "level", "pct_change", "log_diff", "none"
     source: str = "FRED"
     seasonal_adjustment: str = "SA"
+    release_calendar_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -141,8 +142,92 @@ SERIES_REGISTRY: Dict[str, SeriesSchema] = {
             frequency="Q",
             release_lag_quarters=0,
             transform="none",
+            release_calendar_key="fred_weekly",
         ),
         dtype="float64",
+    ),
+    "TB3MS": SeriesSchema(
+        metadata=SeriesMetadata(
+            series_id="TB3MS",
+            description="3-Month Treasury Bill Secondary Market Rate",
+            units="PCT",
+            frequency="M",
+            release_lag_quarters=0,
+            transform="none",
+            release_calendar_key="fred_monthly",
+        ),
+        dtype="float64",
+        min_value=0.0,
+    ),
+    "GS10": SeriesSchema(
+        metadata=SeriesMetadata(
+            series_id="GS10",
+            description="10-Year Treasury Constant Maturity Rate",
+            units="PCT",
+            frequency="M",
+            release_lag_quarters=0,
+            transform="none",
+            release_calendar_key="fred_monthly",
+        ),
+        dtype="float64",
+        min_value=0.0,
+    ),
+    "GDPDEF": SeriesSchema(
+        metadata=SeriesMetadata(
+            series_id="GDPDEF",
+            description="Gross Domestic Product Implicit Price Deflator",
+            units="INDEX_2017_100",
+            frequency="Q",
+            release_lag_quarters=1,
+            transform="pct_change",
+            release_calendar_key="fred_quarterly",
+        ),
+        dtype="float64",
+        allow_negative=False,
+        min_value=0.0,
+    ),
+    "PNFIC1": SeriesSchema(
+        metadata=SeriesMetadata(
+            series_id="PNFIC1",
+            description="Real Private Nonresidential Fixed Investment",
+            units="SAAR_BN_2017_USD",
+            frequency="Q",
+            release_lag_quarters=1,
+            transform="pct_change",
+            release_calendar_key="fred_quarterly",
+        ),
+        dtype="float64",
+        allow_negative=False,
+        min_value=0.0,
+    ),
+    "HOANBS": SeriesSchema(
+        metadata=SeriesMetadata(
+            series_id="HOANBS",
+            description="Nonfarm Business Sector: Hours Worked for All Persons",
+            units="INDEX_2017_100",
+            frequency="Q",
+            release_lag_quarters=1,
+            transform="pct_change",
+            release_calendar_key="fred_quarterly",
+        ),
+        dtype="float64",
+        allow_negative=False,
+        min_value=0.0,
+    ),
+    "CES0500000003": SeriesSchema(
+        metadata=SeriesMetadata(
+            series_id="CES0500000003",
+            description="Average Hourly Earnings of All Employees: Total Private",
+            units="USD_PER_HOUR",
+            frequency="M",
+            release_lag_quarters=0,
+            transform="pct_change",
+            source="BLS_FRED",
+            release_calendar_key="fred_monthly",
+        ),
+        dtype="float64",
+        allow_negative=False,
+        min_value=0.0,
     ),
 }
 

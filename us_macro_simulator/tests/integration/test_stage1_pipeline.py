@@ -29,6 +29,8 @@ def test_run_stage1_pipeline(tmp_path):
     assert (output_dir / "julia_bundle" / "observed_dataset.csv").exists()
     assert (output_dir / "julia_bundle" / "simulator_forecasts.csv").exists()
     assert (output_dir / "julia_bundle" / "manifest.json").exists()
+    assert (output_dir / "inputs" / "calibration_bundle" / "manifest.json").exists()
+    assert (output_dir / "inputs" / "calibration_bundle" / "calibration.json").exists()
     assert (output_dir / "backtest_forecasts.parquet").exists()
     assert (output_dir / "comparison_table.parquet").exists()
     assert (output_dir / "validation_report.json").exists()
